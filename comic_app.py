@@ -3,18 +3,24 @@ from google import genai
 from dotenv import load_dotenv
 import os
 import html
+import re
 
-# Load environment variables
+# =========================================================
+# CONFIGURATION
+# =========================================================
+
 load_dotenv()
 
-# Page settings
 st.set_page_config(
     page_title="ComicCraft",
     page_icon="🎨",
     layout="wide"
 )
 
-# Gemini API
+# =========================================================
+# GEMINI API
+# =========================================================
+
 api_key = os.getenv("GEMINI_API_KEY")
 
 if not api_key:
@@ -23,52 +29,83 @@ if not api_key:
 
 client = genai.Client(api_key=api_key)
 
-# Custom CSS
+# =========================================================
+# CUSTOM CSS
+# =========================================================
+
 st.markdown("""
 <style>
-.panel-card {
-    border: 2px solid #777;
-    border-radius: 18px;
-    padding: 25px;
+
+.main-title {
+    font-size: 48px;
+    font-weight: 800;
+}
+
+.subtitle {
+    font-size: 20px;
     margin-bottom: 25px;
 }
 
+.panel-card {
+    border: 2px solid #555;
+    border-radius: 20px;
+    padding: 28px;
+    margin-top: 25px;
+    margin-bottom: 30px;
+    background: rgba(255,255,255,0.02);
+}
+
 .panel-title {
-    font-size: 28px;
-    font-weight: bold;
-    margin-bottom: 15px;
+    font-size: 30px;
+    font-weight: 800;
+    margin-bottom: 22px;
 }
 
 .section-title {
-    font-size: 18px;
-    font-weight: bold;
-    margin-top: 15px;
+    font-size: 19px;
+    font-weight: 700;
+    margin-top: 20px;
+    margin-bottom: 8px;
 }
 
 .dialogue-box {
-    border-left: 5px solid #7c4dff;
-    padding: 12px;
+    border-left: 6px solid #8b5cf6;
+    padding: 15px 18px;
     margin-top: 8px;
     border-radius: 8px;
+    background: rgba(139,92,246,0.08);
+    font-size: 17px;
 }
 
 .image-prompt-box {
-    border-left: 5px solid #00a8cc;
-    padding: 12px;
+    border-left: 6px solid #06b6d4;
+    padding: 15px 18px;
     margin-top: 8px;
     border-radius: 8px;
+    background: rgba(6,182,212,0.08);
+    font-size: 16px;
 }
+
+.story-box {
+    border-radius: 15px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
-# Sidebar
+# =========================================================
+# SIDEBAR
+# =========================================================
+
 with st.sidebar:
 
     st.header("🎨 About ComicCraft")
 
     st.write(
         "ComicCraft uses Gemini AI to transform "
-        "your story idea into a 5-panel comic story."
+        "your story idea into a connected 5-panel comic story."
     )
 
     st.divider()
@@ -79,148 +116,364 @@ with st.sidebar:
     st.write("🖼️ AI Image Prompts")
     st.write("💬 Character Dialogues")
     st.write("🎭 Character Consistency")
+    st.write("🔗 Story Continuity")
     st.write("📥 Story Download")
 
     st.divider()
 
     st.info(
-        "💡 Free version: generates the comic story, "
-        "dialogues and detailed image prompts."
+        "💡 The free version generates the complete comic story "
+        "and detailed image prompts for every panel."
     )
 
-# Title
-st.title("🎨 ComicCraft")
+# =========================================================
+# MAIN TITLE
+# =========================================================
 
-st.write("Create your own AI comic story!")
-
-st.caption(
-    "✨ Turn your imagination into a 5-panel comic story with AI!"
+st.markdown(
+    '<div class="main-title">🎨 ComicCraft</div>',
+    unsafe_allow_html=True
 )
 
-# Story input
+st.markdown(
+    '<div class="subtitle">Create your own AI comic story!</div>',
+    unsafe_allow_html=True
+)
+
+st.write(
+    "✨ Turn your imagination into a connected 5-panel comic story with AI!"
+)
+
+# =========================================================
+# STORY INPUT
+# =========================================================
+
 story_idea = st.text_area(
     "💡 Enter your comic story idea:",
     placeholder=(
-        "Example: A college student creates an AI robot "
-        "that helps save the college..."
+        "Example: A college student builds an AI robot "
+        "for a project, but the robot accidentally causes "
+        "a funny problem during the college exhibition."
     ),
-    height=150
+    height=160
 )
 
 st.info(
-    "🎭 Characters will stay consistent across all 5 panels."
+    "🎭 Characters stay consistent across all 5 panels, "
+    "and every panel continues the previous scene."
 )
 
-# Clear button
-if st.button("🗑️ Clear"):
+# =========================================================
+# BUTTONS
+# =========================================================
+
+col1, col2 = st.columns([1, 1])
+
+with col1:
+
+    generate_button = st.button(
+        "🚀 Generate My Comic",
+        type="primary",
+        use_container_width=True
+    )
+
+with col2:
+
+    clear_button = st.button(
+        "🗑️ Clear",
+        use_container_width=True
+    )
+
+# =========================================================
+# CLEAR
+# =========================================================
+
+if clear_button:
 
     st.session_state.pop("comic_story", None)
+    st.session_state.pop("story_title", None)
+
     st.rerun()
 
-# Generate button
-if st.button("🚀 Generate My Comic", type="primary"):
+# =========================================================
+# GENERATE COMIC
+# =========================================================
+
+if generate_button:
 
     if not story_idea.strip():
 
         st.warning(
-            "💡 Please enter a story idea to create your comic!"
+            "💡 Please enter a comic story idea first."
         )
+
         st.stop()
 
+    # -----------------------------------------------------
+    # IMPORTANT GEMINI PROMPT
+    # -----------------------------------------------------
+
     prompt = f"""
-You are an expert comic-book story writer.
+You are a professional comic-book writer and visual storyteller.
 
-Create a short and interesting comic story based on:
+Create ONE COMPLETE and CONTINUOUS 5-PANEL COMIC STORY
+based on this user's idea:
 
-{story_idea}
+"{story_idea}"
 
-Create EXACTLY 5 comic panels.
+=========================================================
+MAIN REQUIREMENT
+=========================================================
 
-Use this exact format:
+This must feel like ONE real comic story.
 
-Panel 1
-Scene:
-Character Action:
-Dialogue:
-Image Prompt:
+Panel 1 starts the story.
 
-Panel 2
-Scene:
-Character Action:
-Dialogue:
-Image Prompt:
+Panel 2 MUST directly continue Panel 1.
 
-Panel 3
-Scene:
-Character Action:
-Dialogue:
-Image Prompt:
+Panel 3 MUST directly continue Panel 2.
 
-Panel 4
-Scene:
-Character Action:
-Dialogue:
-Image Prompt:
+Panel 4 MUST directly continue Panel 3.
 
-Panel 5
-Scene:
-Character Action:
-Dialogue:
-Image Prompt:
+Panel 5 MUST directly continue Panel 4 and finish the story.
 
-CHARACTER CONSISTENCY:
+Do NOT create five unrelated scenes.
 
-Keep the same characters throughout all 5 panels.
+=========================================================
+CHARACTER CONSISTENCY
+=========================================================
 
-For every character maintain:
+Create 1 to 3 main characters.
+
+Introduce their appearance in Panel 1.
+
+Keep the SAME characters throughout all five panels.
+
+Keep consistent:
 
 - Name
 - Age
-- Appearance
-- Hairstyle
+- Hair
+- Face
 - Clothing
+- Colors
 - Personality
+- Important objects
 
-Do not change their appearance or clothing.
+Do not randomly change their clothes or appearance.
 
-STORY:
+=========================================================
+STORY STRUCTURE
+=========================================================
 
-Panel 1 = Introduction
-Panel 2 = Problem
-Panel 3 = Main action
-Panel 4 = Solution
-Panel 5 = Ending
+Panel 1:
+Introduce the characters, location and situation.
 
-DIALOGUE:
+Panel 2:
+A problem or unexpected event happens.
 
-Keep dialogue short and natural.
+Panel 3:
+The characters react and try to solve the problem.
 
-IMAGE PROMPT:
+Panel 4:
+The main solution or important action happens.
 
-Create a detailed image prompt for every panel.
+Panel 5:
+Show the result and give the story a satisfying ending.
+The ending can be funny, emotional, inspiring or surprising.
 
-Include:
+=========================================================
+VERY IMPORTANT PANEL MATCHING
+=========================================================
 
-- Character appearance
-- Clothing
-- Background
-- Pose
-- Action
+For EACH panel:
+
+The Scene must describe what is happening.
+
+The Character Action must describe what the characters
+are physically doing in that exact scene.
+
+The Dialogue must be something the characters would naturally
+say during that exact moment.
+
+The Image Prompt must visually show EXACTLY the same moment.
+
+Do NOT create an image prompt that shows a different event.
+
+Do NOT introduce objects or characters in the image prompt
+that are not part of the scene.
+
+=========================================================
+IMAGE PROMPT REQUIREMENTS
+=========================================================
+
+Every Image Prompt must include:
+
+- Same character appearance
+- Same clothing
+- Character position
+- Character action
 - Facial expression
+- Location
+- Important objects
+- Background
+- Camera angle
 - Lighting
-- Camera view
-- Comic art style
+- Comic-book art style
 
-Do not create anything outside the 5 panels.
+The image prompt must match the Scene,
+Character Action and Dialogue.
+
+=========================================================
+EXAMPLE OF CORRECT CONTINUITY
+=========================================================
+
+Panel 1:
+
+Scene:
+Leo is building a small robot in his college room.
+
+Character Action:
+Leo connects a battery to the robot while sitting at his desk.
+
+Dialogue:
+Leo: "Come on, Bot-C. Work this time!"
+
+Image Prompt:
+Comic-book panel showing Leo with messy brown hair,
+green T-shirt and blue jeans sitting at his college desk,
+connecting a battery to the same small white robot.
+The robot is on the desk. College room in the background.
+Leo looks focused. Bright comic-book lighting.
+
+Panel 2:
+
+Scene:
+The robot suddenly turns on after Leo connects the battery.
+
+Character Action:
+The robot's blue eyes begin glowing while Leo jumps back
+from the desk in surprise.
+
+Dialogue:
+Leo: "Whoa! You actually turned on!"
+
+Image Prompt:
+Comic-book panel showing the SAME Leo wearing the SAME
+green T-shirt and blue jeans in the SAME college room.
+The SAME small white robot is on the SAME desk with glowing
+blue LED eyes. Leo is stepping backward with a surprised face.
+Same desk and background. Dynamic comic-book style.
+
+Notice that Panel 2 continues directly from Panel 1.
+
+=========================================================
+OUTPUT FORMAT
+=========================================================
+
+Return EXACTLY this format:
+
+TITLE:
+[short interesting comic title]
+
+CHARACTERS:
+[character 1 description]
+[character 2 description if needed]
+
+Panel 1
+Scene:
+[scene]
+
+Character Action:
+[action]
+
+Dialogue:
+[dialogue]
+
+Image Prompt:
+[detailed matching image prompt]
+
+Panel 2
+Scene:
+[scene]
+
+Character Action:
+[action]
+
+Dialogue:
+[dialogue]
+
+Image Prompt:
+[detailed matching image prompt]
+
+Panel 3
+Scene:
+[scene]
+
+Character Action:
+[action]
+
+Dialogue:
+[dialogue]
+
+Image Prompt:
+[detailed matching image prompt]
+
+Panel 4
+Scene:
+[scene]
+
+Character Action:
+[action]
+
+Dialogue:
+[dialogue]
+
+Image Prompt:
+[detailed matching image prompt]
+
+Panel 5
+Scene:
+[scene]
+
+Character Action:
+[action]
+
+Dialogue:
+[dialogue]
+
+Image Prompt:
+[detailed matching image prompt]
+
+=========================================================
+STYLE
+=========================================================
+
+Make the story:
+
+- Interesting
+- Easy to understand
+- Visual
+- Natural
+- Suitable for a college project
+- Creative
+- Funny, emotional or inspiring when appropriate
+
+Keep dialogue short.
+
+Do not add explanations outside the requested format.
 """
 
-    # Generate story
-    with st.spinner("✨ Creating your AI comic story..."):
+    # =====================================================
+    # CALL GEMINI
+    # =====================================================
+
+    with st.spinner("✨ Creating your connected comic story..."):
 
         try:
 
             response = client.models.generate_content(
-                model="gemini-3.5-flash-lite",
+                model="gemini-2.5-flash",
                 contents=prompt
             )
 
@@ -234,171 +487,269 @@ Do not create anything outside the 5 panels.
 
                 st.error(
                     "⚠️ Gemini API quota has been reached. "
-                    "Please try again later."
+                    "Please wait and try again."
                 )
 
-            elif "503" in error_message:
+            elif "403" in error_message:
 
                 st.error(
-                    "⚠️ Gemini is temporarily busy. "
-                    "Please try again."
+                    "⚠️ Gemini API key does not have permission "
+                    "to use this model."
+                )
+
+            elif "404" in error_message:
+
+                st.error(
+                    "⚠️ Gemini model was not found. "
+                    "Please check the model name."
                 )
 
             else:
 
-                st.error("⚠️ Gemini Error:")
+                st.error("⚠️ Gemini API Error:")
                 st.code(error_message)
 
             st.stop()
 
+    # =====================================================
+    # SAVE RESULT
+    # =====================================================
+
     st.session_state["comic_story"] = comic_story
 
+# =========================================================
+# DISPLAY COMIC
+# =========================================================
 
-# Display result
 if "comic_story" in st.session_state:
 
     comic_story = st.session_state["comic_story"]
 
-    st.success("🎉 Your ComicCraft story is ready!")
+    st.divider()
 
-    st.markdown("## 📖 Your AI Comic Story")
+    st.success(
+        "🎉 Your connected 5-panel comic story is ready!"
+    )
+
+    # =====================================================
+    # EXTRACT TITLE
+    # =====================================================
+
+    title_match = re.search(
+        r"TITLE:\s*(.*)",
+        comic_story,
+        re.IGNORECASE
+    )
+
+    if title_match:
+
+        title = title_match.group(1).strip()
+
+    else:
+
+        title = "My AI Comic Story"
+
+    st.markdown(
+        f"## 📖 {html.escape(title)}"
+    )
 
     st.info(
-        "✨ Your 5-panel comic has been created with AI. "
-        "Each panel contains a scene, action, dialogue "
-        "and image prompt."
+        "✨ Each panel continues the previous panel, "
+        "with matching scene, action, dialogue and image prompt."
+    )
+
+    # =====================================================
+    # CHARACTER INFORMATION
+    # =====================================================
+
+    character_match = re.search(
+        r"CHARACTERS:\s*(.*?)(?=\nPanel 1)",
+        comic_story,
+        re.IGNORECASE | re.DOTALL
+    )
+
+    if character_match:
+
+        characters = character_match.group(1).strip()
+
+        if characters:
+
+            st.markdown("### 🎭 Characters")
+
+            st.markdown(
+                f"""
+<div class="story-box">
+{html.escape(characters).replace(chr(10), "<br>")}
+</div>
+""",
+                unsafe_allow_html=True
+            )
+
+    # =====================================================
+    # SPLIT PANELS
+    # =====================================================
+
+    panel_matches = re.findall(
+        r"Panel\s+([1-5])\s*(.*?)(?=\nPanel\s+[1-5]|\Z)",
+        comic_story,
+        re.IGNORECASE | re.DOTALL
     )
 
     st.markdown("## 🖼️ Comic Panels")
 
-    panels = comic_story.split("Panel ")
+    # =====================================================
+    # DISPLAY EACH PANEL
+    # =====================================================
 
-    for index, panel in enumerate(panels[1:6], start=1):
-
-        panel = panel.strip()
-
-        lines = panel.split("\n", 1)
-
-        if len(lines) > 1:
-            content = lines[1]
-        else:
-            content = panel
+    for panel_number, panel_content in panel_matches:
 
         scene = ""
         action = ""
         dialogue = ""
         image_prompt = ""
 
-        current_section = ""
+        # -----------------------------------------------
+        # Scene
+        # -----------------------------------------------
 
-        for line in content.splitlines():
+        scene_match = re.search(
+            r"Scene:\s*(.*?)(?=\nCharacter Action:|\Z)",
+            panel_content,
+            re.IGNORECASE | re.DOTALL
+        )
 
-            text = line.strip()
+        if scene_match:
 
-            lower = text.lower()
+            scene = scene_match.group(1).strip()
 
-            if lower.startswith("scene:"):
+        # -----------------------------------------------
+        # Character Action
+        # -----------------------------------------------
 
-                current_section = "scene"
-                scene = text.split(":", 1)[1].strip()
+        action_match = re.search(
+            r"Character Action:\s*(.*?)(?=\nDialogue:|\Z)",
+            panel_content,
+            re.IGNORECASE | re.DOTALL
+        )
 
-            elif lower.startswith("character action:"):
+        if action_match:
 
-                current_section = "action"
-                action = text.split(":", 1)[1].strip()
+            action = action_match.group(1).strip()
 
-            elif lower.startswith("dialogue:"):
+        # -----------------------------------------------
+        # Dialogue
+        # -----------------------------------------------
 
-                current_section = "dialogue"
-                dialogue = text.split(":", 1)[1].strip()
+        dialogue_match = re.search(
+            r"Dialogue:\s*(.*?)(?=\nImage Prompt:|\Z)",
+            panel_content,
+            re.IGNORECASE | re.DOTALL
+        )
 
-            elif lower.startswith("image prompt:"):
+        if dialogue_match:
 
-                current_section = "image"
-                image_prompt = text.split(":", 1)[1].strip()
+            dialogue = dialogue_match.group(1).strip()
 
-            elif text:
+        # -----------------------------------------------
+        # Image Prompt
+        # -----------------------------------------------
 
-                if current_section == "scene":
-                    scene += " " + text
+        image_match = re.search(
+            r"Image Prompt:\s*(.*)",
+            panel_content,
+            re.IGNORECASE | re.DOTALL
+        )
 
-                elif current_section == "action":
-                    action += " " + text
+        if image_match:
 
-                elif current_section == "dialogue":
-                    dialogue += " " + text
+            image_prompt = image_match.group(1).strip()
 
-                elif current_section == "image":
-                    image_prompt += " " + text
+        # -----------------------------------------------
+        # Escape HTML
+        # -----------------------------------------------
 
-        scene = html.escape(scene)
-        action = html.escape(action)
-        dialogue = html.escape(dialogue)
-        image_prompt = html.escape(image_prompt)
+        scene_html = html.escape(scene)
+        action_html = html.escape(action)
+        dialogue_html = html.escape(dialogue)
+        image_prompt_html = html.escape(image_prompt)
+
+        # -----------------------------------------------
+        # PANEL CARD
+        # -----------------------------------------------
 
         st.markdown(
             f"""
 <div class="panel-card">
 
-<div class="panel-title">
-🎬 Panel {index}
-</div>
+    <div class="panel-title">
+        🎬 Panel {html.escape(panel_number)}
+    </div>
 
-<div class="section-title">
-🎬 Scene
-</div>
+    <div class="section-title">
+        🎬 Scene
+    </div>
 
-<div>
-{scene}
-</div>
+    <div>
+        {scene_html}
+    </div>
 
-<div class="section-title">
-🎭 Character Action
-</div>
+    <div class="section-title">
+        🎭 Character Action
+    </div>
 
-<div>
-{action}
-</div>
+    <div>
+        {action_html}
+    </div>
 
-<div class="section-title">
-💬 Dialogue
-</div>
+    <div class="section-title">
+        💬 Dialogue
+    </div>
 
-<div class="dialogue-box">
-{dialogue}
-</div>
+    <div class="dialogue-box">
+        {dialogue_html}
+    </div>
 
-<div class="section-title">
-🖼️ AI Image Prompt
-</div>
+    <div class="section-title">
+        🖼️ AI Image Prompt
+    </div>
 
-<div class="image-prompt-box">
-{image_prompt}
-</div>
+    <div class="image-prompt-box">
+        {image_prompt_html}
+    </div>
 
 </div>
 """,
             unsafe_allow_html=True
         )
 
-    # Download
+# =========================================================
+# DOWNLOAD
+# =========================================================
+
+if "comic_story" in st.session_state:
+
     st.divider()
 
     st.markdown("## 📥 Download")
 
     st.download_button(
-        "📥 Download Your Comic Story",
-        comic_story,
+        label="📥 Download Comic Story",
+        data=st.session_state["comic_story"],
         file_name="ComicCraft_Story.txt",
-        mime="text/plain"
+        mime="text/plain",
+        use_container_width=True
     )
 
     st.success(
-        "🎨 ComicCraft completed successfully!"
+        "🎨 Your ComicCraft project is complete!"
     )
+
+# =========================================================
+# FOOTER
+# =========================================================
 
 st.divider()
 
 st.caption(
-    "🎨 ComicCraft • AI-Powered 5-Panel Comic Story Generator"
+    "🎨 ComicCraft • AI-Powered Connected 5-Panel Comic Generator"
 )
