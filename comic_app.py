@@ -1,57 +1,14 @@
 import streamlit as st
 from google import genai
-from google.genai import types
 from dotenv import load_dotenv
 import os
-import base64
+import html
 
+# --------------------------------------------------
 # Load environment variables
+# --------------------------------------------------
+
 load_dotenv()
-
-# Connect to Gemini
-client = genai.Client(
-    api_key=os.getenv("GEMINI_API_KEY")
-)
-
-
-# --------------------------------------------------
-# Generate comic panel image
-# --------------------------------------------------
-
-def generate_panel_image(image_prompt, panel_number):
-
-    try:
-
-        response = client.models.generate_content(
-            model="gemini-3.1-flash-image",
-            contents=image_prompt,
-            config=types.GenerateContentConfig(
-                response_modalities=["IMAGE"]
-            )
-        )
-
-        for part in response.parts:
-
-            if part.inline_data:
-
-                image = part.as_image()
-
-                image_path = f"comic_panel_{panel_number}.png"
-
-                image.save(image_path)
-
-                return image_path
-
-        return None
-
-    except Exception as e:
-
-        st.error(
-            f"Image generation error for Panel {panel_number}: {e}"
-        )
-
-        return None
-
 
 # --------------------------------------------------
 # Page settings
@@ -59,22 +16,108 @@ def generate_panel_image(image_prompt, panel_number):
 
 st.set_page_config(
     page_title="ComicCraft",
-    page_icon="🎨"
+    page_icon="🎨",
+    layout="wide"
 )
+
+# --------------------------------------------------
+# Connect to Gemini
+# --------------------------------------------------
+
+api_key = os.getenv("GEMINI_API_KEY")
+
+if not api_key:
+    st.error(
+        "⚠️ GEMINI_API_KEY is not configured. "
+        "Please add your Gemini API key."
+    )
+    st.stop()
+
+client = genai.Client(api_key=api_key)
 
 
 # --------------------------------------------------
-# Title
+# Custom CSS
 # --------------------------------------------------
 
-st.title("🎨 ComicCraft")
+st.markdown(
+    """
+    <style>
 
-st.write(
-    "Create your own AI comic story!"
-)
+    .main-title {
+        text-align: center;
+        font-size: 48px;
+        font-weight: 800;
+        margin-bottom: 5px;
+    }
 
-st.caption(
-    "✨ Turn your imagination into a 5-panel comic story with AI!"
+    .subtitle {
+        text-align: center;
+        font-size: 20px;
+        margin-bottom: 5px;
+    }
+
+    .tagline {
+        text-align: center;
+        font-size: 16px;
+        opacity: 0.75;
+        margin-bottom: 30px;
+    }
+
+    .panel-card {
+        border: 2px solid #777;
+        border-radius: 18px;
+        padding: 22px;
+        margin-bottom: 25px;
+        background: rgba(255,255,255,0.04);
+    }
+
+    .panel-title {
+        font-size: 27px;
+        font-weight: 700;
+        margin-bottom: 15px;
+    }
+
+    .section-title {
+        font-size: 17px;
+        font-weight: 700;
+        margin-top: 12px;
+        margin-bottom: 5px;
+    }
+
+    .dialogue-box {
+        border-left: 5px solid #7c4dff;
+        padding: 12px 15px;
+        margin-top: 8px;
+        border-radius: 8px;
+        background: rgba(124,77,255,0.10);
+        font-style: italic;
+    }
+
+    .image-prompt-box {
+        border-left: 5px solid #00a8cc;
+        padding: 12px 15px;
+        margin-top: 8px;
+        border-radius: 8px;
+        background: rgba(0,168,204,0.08);
+        font-size: 14px;
+    }
+
+    .comic-number {
+        font-size: 50px;
+        text-align: center;
+        margin-bottom: 5px;
+    }
+
+    .comic-label {
+        text-align: center;
+        font-weight: 700;
+        margin-bottom: 15px;
+    }
+
+    </style>
+    """,
+    unsafe_allow_html=True
 )
 
 
@@ -96,13 +139,40 @@ with st.sidebar:
     st.subheader("✨ Features")
 
     st.write("📖 AI Story Generation")
-    st.write("🖼️ AI Comic Images")
+    st.write("🖼️ AI Image Prompts")
     st.write("💬 Character Dialogues")
     st.write("🎭 Character Consistency")
     st.write("📥 Story Download")
 
+    st.divider()
 
-st.divider()
+    st.info(
+        "💡 This free version generates the comic story, "
+        "dialogues and detailed image prompts without "
+        "using paid image-generation APIs."
+    )
+
+
+# --------------------------------------------------
+# Title
+# --------------------------------------------------
+
+st.markdown(
+    '<div class="main-title">🎨 ComicCraft</div>',
+    unsafe_allow_html=True
+)
+
+st.markdown(
+    '<div class="subtitle">Create your own AI comic story!</div>',
+    unsafe_allow_html=True
+)
+
+st.markdown(
+    '<div class="tagline">'
+    '✨ Turn your imagination into a 5-panel comic story with AI!'
+    '</div>',
+    unsafe_allow_html=True
+)
 
 
 # --------------------------------------------------
@@ -111,7 +181,11 @@ st.divider()
 
 story_idea = st.text_area(
     "💡 Enter your comic story idea:",
-    placeholder="Example: A village girl discovers a magical book..."
+    placeholder=(
+        "Example: A college student creates an AI robot "
+        "that helps save the college..."
+    ),
+    height=150
 )
 
 st.info(
@@ -125,6 +199,7 @@ st.info(
 
 if st.button("🗑️ Clear"):
 
+    st.session_state.pop("comic_story", None)
     st.rerun()
 
 
@@ -132,55 +207,65 @@ if st.button("🗑️ Clear"):
 # Generate Comic
 # --------------------------------------------------
 
-if st.button("🚀 Generate My Comic"):
+if st.button("🚀 Generate My Comic", type="primary"):
 
-    if story_idea.strip():
+    if not story_idea.strip():
 
-        # ------------------------------------------
-        # Generate Story
-        # ------------------------------------------
+        st.warning(
+            "💡 Please enter a story idea to create your comic!"
+        )
+        st.stop()
 
-        with st.spinner(
-            "Creating your comic story..."
-        ):
+    # --------------------------------------------------
+    # Prompt
+    # --------------------------------------------------
 
-            prompt = f"""
-Create a short comic story based on this idea:
+    prompt = f"""
+You are an expert comic-book story writer.
+
+Create a short and engaging comic story based on this idea:
 
 {story_idea}
 
-Give the story in exactly 5 comic panels.
+Create EXACTLY 5 comic panels.
 
-Use these exact headings:
+Use this exact structure:
 
 Panel 1
+Scene:
+Character Action:
+Dialogue:
+Image Prompt:
+
 Panel 2
+Scene:
+Character Action:
+Dialogue:
+Image Prompt:
+
 Panel 3
+Scene:
+Character Action:
+Dialogue:
+Image Prompt:
+
 Panel 4
+Scene:
+Character Action:
+Dialogue:
+Image Prompt:
+
 Panel 5
+Scene:
+Character Action:
+Dialogue:
+Image Prompt:
 
-For each panel, provide:
+IMPORTANT CHARACTER CONSISTENCY:
 
-1. Scene
-2. Character action
-3. Dialogue
-4. Image prompt
+Create a small group of main characters.
 
-Make the image prompt detailed enough for an AI image generator.
-
-The image prompt must include:
-
-- Character appearance
-- Character clothing
-- Background
-- Character pose and action
-- Facial expression
-- Lighting
-- Comic art style
-
-Keep the same characters consistent across all 5 panels.
-
-For each character, maintain the same:
+For every character maintain the same:
 
 - Name
 - Age
@@ -189,271 +274,308 @@ For each character, maintain the same:
 - Clothing
 - Personality
 
-Do not change the character's appearance or clothing
-between panels.
+Do not change their appearance or clothing between panels.
+
+STORY REQUIREMENTS:
+
+- Panel 1 should introduce the characters and situation.
+- Panel 2 should introduce a problem or challenge.
+- Panel 3 should show the main action.
+- Panel 4 should show the solution or important turning point.
+- Panel 5 should provide a satisfying ending.
+
+DIALOGUE:
+
+- Keep dialogue short and natural.
+- Use quotation marks.
+- Give dialogue to the relevant character.
+
+IMAGE PROMPT:
+
+For every panel, create a detailed prompt that could be
+given to an AI image generator.
+
+Each image prompt must describe:
+
+- Character appearance
+- Character clothing
+- Background
+- Character pose
+- Character action
+- Facial expression
+- Lighting
+- Camera/view
+- Comic art style
+- Consistent character appearance
+
+Do not generate anything outside the 5 panels.
 """
 
-            try:
 
-                response = client.models.generate_content(
-                    model="gemini-3.5-flash-lite",
-                    contents=prompt
+    # --------------------------------------------------
+    # Generate Story
+    # --------------------------------------------------
+
+    with st.spinner("✨ Creating your AI comic story..."):
+
+        try:
+
+            response = client.models.generate_content(
+                model="gemini-3.5-flash-lite",
+                contents=prompt
+            )
+
+            comic_story = response.text
+
+        except Exception as e:
+
+            error_message = str(e)
+
+            if "429" in error_message:
+
+                st.error(
+                    "⚠️ Gemini API quota has been reached. "
+                    "Please try again later."
                 )
 
-            except Exception as e:
+            elif "503" in error_message:
 
-                error_message = str(e)
+                st.error(
+                    "⚠️ Gemini is temporarily busy. "
+                    "Please wait and try again."
+                )
 
-                if "503" in error_message:
+            elif "404" in error_message:
 
-                    st.error(
-                        "⚠️ Gemini is temporarily busy. "
-                        "Please wait and try again."
-                    )
+                st.error(
+                    "⚠️ Gemini model was not found. "
+                    "Please check the model name."
+                )
 
-                elif "429" in error_message:
+            else:
 
-                    st.error(
-                        "⚠️ Gemini API quota has been reached. "
-                        "Please try again later."
-                    )
+                st.error("⚠️ Gemini Error:")
+                st.code(error_message)
 
-                elif "404" in error_message:
-
-                    st.error(
-                        "⚠️ Gemini model was not found. "
-                        "Please check the model name."
-                    )
-
-                else:
-
-                    st.error(
-                        "⚠️ Gemini Error:"
-                    )
-
-                    st.code(
-                        error_message
-                    )
-
-                st.stop()
+            st.stop()
 
 
-        # ------------------------------------------
-        # Story ready
-        # ------------------------------------------
+    # --------------------------------------------------
+    # Save result in session
+    # --------------------------------------------------
 
-        st.success(
-            "🎨 Your ComicCraft story is ready!"
-        )
+    st.session_state["comic_story"] = comic_story
+
+
+# --------------------------------------------------
+# Display Comic
+# --------------------------------------------------
+
+if "comic_story" in st.session_state:
+
+    comic_story = st.session_state["comic_story"]
+
+    st.success("🎉 Your ComicCraft story is ready!")
+
+    st.markdown("## 📖 Your AI Comic Story")
+
+    st.markdown(
+        """
+        <div style="
+            padding:15px;
+            border-radius:12px;
+            background:rgba(30,100,180,0.15);
+            margin-bottom:25px;
+        ">
+        ✨ Your 5-panel comic has been created with AI.
+        Each panel includes a scene, character action,
+        dialogue and a detailed image prompt.
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # --------------------------------------------------
+    # Split panels
+    # --------------------------------------------------
+
+    panels = comic_story.split("Panel ")
+
+    valid_panels = []
+
+    for panel in panels[1:]:
+
+        panel = panel.strip()
+
+        if panel:
+            valid_panels.append(panel)
+
+
+    # --------------------------------------------------
+    # Comic Panels
+    # --------------------------------------------------
+
+    st.markdown("## 🖼️ Comic Panels")
+
+    for index, panel in enumerate(valid_panels[:5], start=1):
+
+        # ----------------------------------------------
+        # Separate panel heading/content
+        # ----------------------------------------------
+
+        lines = panel.split("\n", 1)
+
+        panel_number = str(index)
+
+        if len(lines) > 1:
+            content = lines[1]
+        else:
+            content = panel
+
+        # ----------------------------------------------
+        # Extract sections
+        # ----------------------------------------------
+
+        scene = ""
+        action = ""
+        dialogue = ""
+        image_prompt = ""
+
+        lines_content = content.splitlines()
+
+        current_section = ""
+
+        for line in lines_content:
+
+            clean_line = line.strip()
+
+            lower_line = clean_line.lower()
+
+            if lower_line.startswith("scene:"):
+
+                current_section = "scene"
+                scene = clean_line.split(":", 1)[1].strip()
+
+            elif lower_line.startswith("character action:"):
+
+                current_section = "action"
+                action = clean_line.split(":", 1)[1].strip()
+
+            elif lower_line.startswith("dialogue:"):
+
+                current_section = "dialogue"
+                dialogue = clean_line.split(":", 1)[1].strip()
+
+            elif lower_line.startswith("image prompt:"):
+
+                current_section = "image_prompt"
+                image_prompt = clean_line.split(":", 1)[1].strip()
+
+            elif clean_line:
+
+                if current_section == "scene":
+                    scene += " " + clean_line
+
+                elif current_section == "action":
+                    action += " " + clean_line
+
+                elif current_section == "dialogue":
+                    dialogue += " " + clean_line
+
+                elif current_section == "image_prompt":
+                    image_prompt += " " + clean_line
+
+
+        # ----------------------------------------------
+        # Escape HTML
+        # ----------------------------------------------
+
+        scene_html = html.escape(scene)
+        action_html = html.escape(action)
+        dialogue_html = html.escape(dialogue)
+        image_prompt_html = html.escape(image_prompt)
+
+
+        # ----------------------------------------------
+        # Display Panel
+        # ----------------------------------------------
 
         st.markdown(
-            "## 📖 Your Comic Story"
-        )
+            f"""
+            <div class="panel-card">
 
-        st.markdown(
-            "### 🖼️ Comic Panels"
-        )
+                <div class="comic-number">
+                    🎬
+                </div>
 
-        st.info(
-            "✨ ComicCraft will now create an image "
-            "for each panel."
-        )
+                <div class="comic-label">
+                    PANEL {panel_number}
+                </div>
 
+                <div class="section-title">
+                    🎬 Scene
+                </div>
 
-        # ------------------------------------------
-        # Split panels
-        # ------------------------------------------
+                <div>
+                    {scene_html}
+                </div>
 
-        panels = response.text.split("Panel ")
+                <div class="section-title">
+                    🎭 Character Action
+                </div>
 
+                <div>
+                    {action_html}
+                </div>
 
-        # ------------------------------------------
-        # Display each panel
-        # ------------------------------------------
+                <div class="section-title">
+                    💬 Dialogue
+                </div>
 
-        for panel_number, panel in enumerate(
-            panels[1:],
-            start=1
-        ):
+                <div class="dialogue-box">
+                    {dialogue_html}
+                </div>
 
-            st.markdown("---")
+                <div class="section-title">
+                    🖼️ AI Image Prompt
+                </div>
 
+                <div class="image-prompt-box">
+                    {image_prompt_html}
+                </div>
 
-            # --------------------------------------
-            # Get Image Prompt
-            # --------------------------------------
-
-            panel_image = None
-
-            # Get Image Prompt
-            panel_image = None
-
-            image_prompt = ""
-
-            if "Image Prompt:" in panel:
-                image_prompt = panel.split("Image Prompt:", 1)[1].strip()
-
-            elif "Image prompt:" in panel:
-                image_prompt = panel.split("Image prompt:", 1)[1].strip()
-
-            elif "4. Image prompt" in panel:
-                image_prompt = panel.split("4. Image prompt", 1)[1].strip()
-
-            elif "4. Image Prompt" in panel:
-                image_prompt = panel.split("4. Image Prompt", 1)[1].strip()
-
-
-            if image_prompt:
-
-                with st.spinner(
-                    f"🎨 Generating Panel {panel_number} image..."
-                ):
-
-                    panel_image = generate_panel_image(
-                        image_prompt,
-                        panel_number
-                    )
-
-
-            if panel_image:
-
-                st.image(
-                    panel_image,
-                    caption=f"🖼️ Comic Panel {panel_number}",
-                    use_container_width=True
-                )
-
-                with st.spinner(
-                    f"🎨 Generating Panel {panel_number} image..."
-                ):
-
-                    panel_image = generate_panel_image(
-                        image_prompt,
-                        panel_number
-                    )
-
-
-            # --------------------------------------
-            # Display Image
-            # --------------------------------------
-
-            if panel_image:
-
-                st.image(
-                    panel_image,
-                    caption=f"🖼️ Comic Panel {panel_number}",
-                    use_container_width=True
-                )
-
-
-            # --------------------------------------
-            # Panel box
-            # --------------------------------------
-
-            lines = panel.split(
-                "\n",
-                1
-            )
-
-
-            st.markdown(
-                f"""
-                <div style="
-                    padding: 20px;
-                    border-radius: 15px;
-                    border: 2px solid #dddddd;
-                    margin-bottom: 20px;
-                ">
-                <h3>📖 Panel {lines[0]}</h3>
-                """,
-                unsafe_allow_html=True
-            )
-
-
-            if len(lines) > 1:
-
-                content = lines[1]
-
-
-                content = content.replace(
-                    "1. Scene",
-                    "🎬 Scene"
-                ).replace(
-                    "Scene:",
-                    "🎬 Scene:"
-                )
-
-
-                content = content.replace(
-                    "2. Character action",
-                    "🎭 Character Action"
-                ).replace(
-                    "Character action:",
-                    "🎭 Character Action:"
-                )
-
-
-                content = content.replace(
-                    "3. Dialogue",
-                    "💬 Dialogue"
-                ).replace(
-                    "Dialogue:",
-                    "💬 Dialogue:"
-                )
-
-
-                content = content.replace(
-                    "4. Image prompt",
-                    "🖼️ Image Prompt"
-                ).replace(
-                    "Image prompt:",
-                    "🖼️ Image Prompt:"
-                )
-
-
-                st.markdown(
-                    content
-                )
-
-
-            st.markdown(
-                "</div>",
-                unsafe_allow_html=True
-            )
-
-
-        # ------------------------------------------
-        # Final message
-        # ------------------------------------------
-
-        # ------------------------------------------
-        # Save story
-        # ------------------------------------------
-
-        with open(
-            "comic_story.txt",
-            "w",
-            encoding="utf-8"
-        ) as file:
-
-            file.write(
-                response.text
-            )
-
-
-        # ------------------------------------------
-        # Download story
-        # ------------------------------------------
-
-        st.download_button(
-            "📥 Download Your Comic Story",
-            response.text,
-            file_name="ComicCraft_Story.txt"
+            </div>
+            """,
+            unsafe_allow_html=True
         )
 
 
-    else:
+    # --------------------------------------------------
+    # Story download
+    # --------------------------------------------------
 
-        st.warning(
-            "💡 Please enter a story idea to create your comic!"
-        )
+    st.divider()
+
+    st.markdown("## 📥 Download")
+
+    st.download_button(
+        label="📥 Download Your Comic Story",
+        data=comic_story,
+        file_name="ComicCraft_Story.txt",
+        mime="text/plain"
+    )
+
+    st.success(
+        "🎨 ComicCraft completed successfully!"
+    )
+
+
+# --------------------------------------------------
+# Footer
+# --------------------------------------------------
+
+st.divider()
+
+st.caption(
+    "🎨 ComicCraft • AI-Powered 5-Panel Comic Story Generator"
+)
