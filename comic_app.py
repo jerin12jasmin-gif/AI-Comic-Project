@@ -14,11 +14,10 @@ client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 
 # --------------------------------------------------
-# Generate comic panel image with Rate-Limit Handling
+# Generate comic panel image with auto-retry
 # --------------------------------------------------
 def generate_panel_image(image_prompt, panel_number):
-  # Retry up to 5 times if 429 or 503 errors occur
-  for attempt in range(5):
+  for attempt in range(4):
     try:
       response = client.models.generate_content(
           model="gemini-3.8-flash",
@@ -37,21 +36,12 @@ def generate_panel_image(image_prompt, panel_number):
 
     except Exception as e:
       error_str = str(e)
-
-      # Handle Rate Limits (429) or Temporary Overload (503)
-      if "429" in error_str or "503" in error_str or "UNAVAILABLE" in error_str:
-        wait_time = 10 + (attempt * 5)  # Pause longer with each failed attempt
-        st.warning(
-            f"⏳ Rate limit reached. Pausing for {wait_time}s before retrying"
-            f" Panel {panel_number}..."
-        )
-        time.sleep(wait_time)
+      if ("503" in error_str or "UNAVAILABLE" in error_str) and attempt < 3:
+        time.sleep(3 + attempt * 2)
         continue
-
-      else:
+      elif attempt == 3:
         st.error(f"Image generation error for Panel {panel_number}: {e}")
-        return None
-
+      return None
   return None
 
 
@@ -168,7 +158,7 @@ Do not change the character's appearance or clothing
 between panels.
 """
 
-      for attempt in range(5):
+      for attempt in range(4):
         try:
           response = client.models.generate_content(
               model="gemini-3.8-flash", contents=prompt
@@ -176,18 +166,20 @@ between panels.
           break
         except Exception as e:
           error_message = str(e)
-          if "429" in error_message or "503" in error_message:
-            time.sleep(10)  # Wait 10 seconds on rate limit
+          if (
+              "503" in error_message or "UNAVAILABLE" in error_message
+          ) and attempt < 3:
+            time.sleep(3)
             continue
-          else:
+          elif "429" in error_message:
+            st.error("⚠️ Gemini API quota has been reached. Try again later.")
+            st.stop()
+          elif attempt == 3:
             st.error(f"⚠️ Gemini Error: {error_message}")
             st.stop()
 
     if not response:
-      st.error(
-          "API Quota limit reached. Please wait a minute and click 'Generate"
-          " My Comic' again."
-      )
+      st.error("Failed to generate story script. Please try again.")
       st.stop()
 
     # ------------------------------------------
@@ -224,11 +216,10 @@ between panels.
 
       panel_image = None
       if image_prompt:
-        # Pause slightly between panels to respect API rate limits
-        if panel_number > 1:
-          time.sleep(5)
-
-        with st.spinner(f"🎨 Generating Panel {panel_number} image..."):
+        with st.spinner(
+            f"🎨 Generating Panel {panel_number} image (retrying if"
+            " busy)..."
+        ):
           panel_image = generate_panel_image(image_prompt, panel_number)
 
       # --------------------------------------
