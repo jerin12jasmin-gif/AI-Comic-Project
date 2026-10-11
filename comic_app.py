@@ -115,26 +115,26 @@ Rules:
 # ---------------------------------------
 
 def generate_panel_image(image_prompt, panel_number):
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=(
+    result = client.models.generate_images(
+        model="imagen-3.0-generate-002",
+        prompt=(
             "Create one complete colourful comic-book "
             "illustration. Do not create a collage or "
             "multiple panels. Keep the same character "
             "appearance described in this prompt.\n\n"
             + image_prompt
         ),
-        config=types.GenerateContentConfig(
-            response_modalities=["IMAGE", "TEXT"]
+        config=types.GenerateImagesConfig(
+            number_of_images=1,
+            output_mime_type="image/png"
         )
     )
 
-    for part in response.parts or []:
-        if part.inline_data:
-            image = part.as_image()
-            image_path = f"comic_panel_{panel_number}.png"
-            image.save(image_path)
-            return image_path
+    for generated_image in result.generated_images:
+        image = generated_image.image
+        image_path = f"comic_panel_{panel_number}.png"
+        image.save(image_path)
+        return image_path
 
     raise ValueError("The model returned no image.")
 
