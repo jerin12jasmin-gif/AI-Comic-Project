@@ -20,7 +20,7 @@ def generate_panel_image(image_prompt, panel_number):
   for attempt in range(4):
     try:
       response = client.models.generate_content(
-          model="gemini-2.0-flash",
+          model="gemini-3.8-flash",
           contents=image_prompt,
           config=types.GenerateContentConfig(response_modalities=["IMAGE"]),
       )
@@ -161,7 +161,7 @@ between panels.
       for attempt in range(4):
         try:
           response = client.models.generate_content(
-              model="gemini-2.0-flash", contents=prompt
+              model="gemini-3.8-flash", contents=prompt
           )
           break
         except Exception as e:
