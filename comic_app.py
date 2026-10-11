@@ -99,9 +99,9 @@ Rules:
 - Do not add any extra panels.
 """
 
-    # Updated to gemini-2.0-flash (standard supported text model)
+    # Using gemini-1.5-flash for universal stability across all API keys
     response = client.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-1.5-flash",
         contents=prompt
     )
 
