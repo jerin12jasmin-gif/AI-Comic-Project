@@ -1,4 +1,3 @@
-
 import os
 import re
 import streamlit as st
@@ -100,8 +99,9 @@ Rules:
 - Do not add any extra panels.
 """
 
+    # Updated to gemini-2.0-flash (standard supported text model)
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-2.0-flash",
         contents=prompt
     )
 
@@ -312,75 +312,3 @@ if st.session_state.comic_story:
 
                 try:
                     with st.spinner(
-                        f"Generating Panel {number}..."
-                    ):
-                        image_path = generate_panel_image(
-                            image_prompt,
-                            number
-                        )
-
-                    # Save result in session state
-                    st.session_state.comic_images[number] = image_path
-
-                    st.image(
-                        image_path,
-                        caption=f"Comic Panel {number}",
-                        use_container_width=True
-                    )
-
-                    with open(image_path, "rb") as image_file:
-                        st.download_button(
-                            f"📥 Download Panel {number}",
-                            data=image_file.read(),
-                            file_name=f"ComicCraft_Panel_{number}.png",
-                            mime="image/png",
-                            key=f"download_panel_{number}"
-                        )
-
-                    st.markdown(content)
-
-                except Exception as e:
-                    error = str(e)
-
-                    if (
-                        "429" in error
-                        or "RESOURCE_EXHAUSTED" in error
-                    ):
-                        st.error(
-                            "Image API quota exceeded. "
-                            "The remaining images were not requested. "
-                            "Check your quota before trying again."
-                        )
-                        break
-
-                    elif "404" in error or "NOT_FOUND" in error:
-                        st.error(
-                            "Image model not found. Check the "
-                            "supported image-generation models."
-                        )
-                        break
-
-                    elif (
-                        "403" in error
-                        or "PERMISSION_DENIED" in error
-                    ):
-                        st.error(
-                            "Image-generation access denied. "
-                            "Check your API key and permissions."
-                        )
-                        break
-
-                    else:
-                        st.error(
-                            f"Panel {number} failed: {error}"
-                        )
-                        break
-
-                st.divider()
-
-# ---------------------------------------
-# 12. FOOTER
-# ---------------------------------------
-
-st.divider()
-st.caption("🎨 ComicCraft — Bring Your Imagination to Life!")
