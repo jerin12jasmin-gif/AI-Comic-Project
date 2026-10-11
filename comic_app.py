@@ -14,10 +14,11 @@ client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 
 # --------------------------------------------------
-# Generate comic panel image with retry logic
+# Generate comic panel image with automatic retry
 # --------------------------------------------------
 def generate_panel_image(image_prompt, panel_number):
-  for attempt in range(3):
+  # Retry up to 4 times if 503 high demand occurs
+  for attempt in range(4):
     try:
       response = client.models.generate_content(
           model="gemini-2.0-flash",
@@ -35,10 +36,11 @@ def generate_panel_image(image_prompt, panel_number):
       return None
 
     except Exception as e:
-      if "503" in str(e) and attempt < 2:
-        time.sleep(2)  # Wait 2 seconds before retrying
+      error_str = str(e)
+      if ("503" in error_str or "UNAVAILABLE" in error_str) and attempt < 3:
+        time.sleep(3 + attempt * 2)  # Wait longer with each retry
         continue
-      if attempt == 2:
+      elif attempt == 3:
         st.error(f"Image generation error for Panel {panel_number}: {e}")
       return None
   return None
@@ -104,7 +106,7 @@ if st.button("🚀 Generate My Comic"):
   if story_idea.strip():
 
     # ------------------------------------------
-    # Generate Story with Retry Logic for 503
+    # Generate Story with Retry Logic
     # ------------------------------------------
     response = None
     with st.spinner("Creating your comic story..."):
@@ -157,7 +159,7 @@ Do not change the character's appearance or clothing
 between panels.
 """
 
-      for attempt in range(3):
+      for attempt in range(4):
         try:
           response = client.models.generate_content(
               model="gemini-1.5-flash", contents=prompt
@@ -165,27 +167,20 @@ between panels.
           break
         except Exception as e:
           error_message = str(e)
-          if "503" in error_message and attempt < 2:
-            time.sleep(3)  # Wait before retry on busy servers
+          if (
+              "503" in error_message or "UNAVAILABLE" in error_message
+          ) and attempt < 3:
+            time.sleep(3)
             continue
-          elif "503" in error_message:
-            st.error(
-                "⚠️ Gemini is temporarily busy. Please wait a moment and try"
-                " again."
-            )
-            st.stop()
           elif "429" in error_message:
             st.error("⚠️ Gemini API quota has been reached. Try again later.")
             st.stop()
-          elif "404" in error_message:
-            st.error("⚠️ Gemini model was not found.")
-            st.stop()
-          else:
+          elif attempt == 3:
             st.error(f"⚠️ Gemini Error: {error_message}")
             st.stop()
 
     if not response:
-      st.error("Failed to generate story after multiple attempts.")
+      st.error("Failed to generate story script. Please try again.")
       st.stop()
 
     # ------------------------------------------
@@ -222,7 +217,10 @@ between panels.
 
       panel_image = None
       if image_prompt:
-        with st.spinner(f"🎨 Generating Panel {panel_number} image..."):
+        with st.spinner(
+            f"🎨 Generating Panel {panel_number} image (retrying if"
+            " busy)..."
+        ):
           panel_image = generate_panel_image(image_prompt, panel_number)
 
       # --------------------------------------
