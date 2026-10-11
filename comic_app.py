@@ -99,9 +99,8 @@ Rules:
 - Do not add any extra panels.
 """
 
-    # Using gemini-1.5-flash for universal stability across all API keys
     response = client.models.generate_content(
-        model="gemini-1.5-flash",
+        model="gemini-2.0-flash",
         contents=prompt
     )
 
@@ -117,7 +116,7 @@ Rules:
 
 def generate_panel_image(image_prompt, panel_number):
     response = client.models.generate_content(
-        model="gemini-2.5-flash-image",
+        model="gemini-2.0-flash",
         contents=(
             "Create one complete colourful comic-book "
             "illustration. Do not create a collage or "
@@ -242,7 +241,7 @@ if generate_button:
                 )
             elif "404" in error or "NOT_FOUND" in error:
                 st.error(
-                    "The text model was not found. Check "
+                    "The model was not found. Check "
                     "the available models for your API key."
                 )
             elif "403" in error or "PERMISSION_DENIED" in error:
