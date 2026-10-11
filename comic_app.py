@@ -14,10 +14,9 @@ client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 
 # --------------------------------------------------
-# Generate comic panel image with automatic retry
+# Generate comic panel image with auto-retry
 # --------------------------------------------------
 def generate_panel_image(image_prompt, panel_number):
-  # Retry up to 4 times if 503 high demand occurs
   for attempt in range(4):
     try:
       response = client.models.generate_content(
@@ -38,7 +37,7 @@ def generate_panel_image(image_prompt, panel_number):
     except Exception as e:
       error_str = str(e)
       if ("503" in error_str or "UNAVAILABLE" in error_str) and attempt < 3:
-        time.sleep(3 + attempt * 2)  # Wait longer with each retry
+        time.sleep(3 + attempt * 2)
         continue
       elif attempt == 3:
         st.error(f"Image generation error for Panel {panel_number}: {e}")
@@ -106,7 +105,7 @@ if st.button("🚀 Generate My Comic"):
   if story_idea.strip():
 
     # ------------------------------------------
-    # Generate Story with Retry Logic
+    # Generate Story Script
     # ------------------------------------------
     response = None
     with st.spinner("Creating your comic story..."):
@@ -162,7 +161,7 @@ between panels.
       for attempt in range(4):
         try:
           response = client.models.generate_content(
-              model="gemini-1.5-flash", contents=prompt
+              model="gemini-2.0-flash", contents=prompt
           )
           break
         except Exception as e:
