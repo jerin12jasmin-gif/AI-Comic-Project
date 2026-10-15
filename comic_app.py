@@ -94,3 +94,58 @@ Make the story clear, creative, and suitable for a general audience.
 
             story = (response.text or "").strip()
             if not story:
+                st.error("Gemini returned an empty response. Please try again.")
+            else:
+                st.session_state["comic_story"] = story
+                st.session_state["comic_idea"] = story_idea.strip()
+                st.success("🎉 Your ComicStor story is ready!")
+
+        except Exception as e:
+            message = str(e)
+            lower_message = message.lower()
+            if "429" in message or "quota" in lower_message or "resource_exhausted" in lower_message:
+                st.error("⚠️ Gemini API quota/rate limit reached. Please wait and try again.")
+            elif "503" in message or "unavailable" in lower_message:
+                st.error("⚠️ Gemini is temporarily unavailable. Please try again shortly.")
+            elif "404" in message or "not found" in lower_message:
+                st.error("⚠️ The selected Gemini model is unavailable for this API key. Check the model name and API access.")
+            elif "api key" in lower_message or "permission" in lower_message or "401" in message or "403" in message:
+                st.error("⚠️ The Gemini API key is invalid or does not have permission. Check GEMINI_API_KEY.")
+            else:
+                st.error("⚠️ Could not generate the story. Check your API key, internet connection, and installed Google Gen AI SDK.")
+                st.code(message)
+
+if st.session_state.get("comic_story"):
+    story = st.session_state["comic_story"]
+    st.divider()
+    st.header("📖 Your Comic Story")
+
+    # Split the response at each Panel heading and show each panel separately.
+    import re
+    parts = re.split(r"(?=^\s*Panel\s+[1-5]\s*$)", story, flags=re.IGNORECASE | re.MULTILINE)
+    panels = [part.strip() for part in parts if part.strip()]
+
+    for index, panel in enumerate(panels, start=1):
+        st.markdown("---")
+        lines = panel.splitlines()
+        heading = lines[0].strip() if lines else f"Panel {index}"
+        content = "\n".join(lines[1:]).strip() if len(lines) > 1 else panel
+
+        st.subheader(f"🎬 {heading}")
+        if content:
+            # Format the common section labels without requiring a fixed response format.
+            content = re.sub(r"(?im)^\s*1\.\s*Scene\s*:?", "🎬 **Scene:**", content)
+            content = re.sub(r"(?im)^\s*2\.\s*Character action\s*:?", "🎭 **Character Action:**", content)
+            content = re.sub(r"(?im)^\s*3\.\s*Dialogue\s*:?", "💬 **Dialogue:**", content)
+            content = re.sub(r"(?im)^\s*Scene\s*:", "🎬 **Scene:**", content)
+            content = re.sub(r"(?im)^\s*Character action\s*:", "🎭 **Character Action:**", content)
+            content = re.sub(r"(?im)^\s*Dialogue\s*:", "💬 **Dialogue:**", content)
+            st.markdown(content)
+
+    st.download_button(
+        "📥 Download Your Comic Story",
+        data=story,
+        file_name="ComicStor_Story.txt",
+        mime="text/plain",
+        use_container_width=True,
+    )
