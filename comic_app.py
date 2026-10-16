@@ -315,23 +315,4 @@ between panels.
         ) as file:
 
             file.write(
-                response.text
-            )
-
-
-        # ------------------------------------------
-        # Download story
-        # ------------------------------------------
-
-        st.download_button(
-            "📥 Download Your Comic Story",
-            response.text,
-            file_name="ComicCraft_Story.txt"
-        )
-
-
-    else:
-
-        st.warning(
-            "💡 Please enter a story idea to create your comic!"
-        )
+                response
