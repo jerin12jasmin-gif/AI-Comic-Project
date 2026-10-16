@@ -3,6 +3,7 @@ from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 import os
+import base64
 
 # Load environment variables
 load_dotenv()
@@ -11,6 +12,45 @@ load_dotenv()
 client = genai.Client(
     api_key=os.getenv("GEMINI_API_KEY")
 )
+
+
+# --------------------------------------------------
+# Generate comic panel image
+# --------------------------------------------------
+
+def generate_panel_image(image_prompt, panel_number):
+
+    try:
+
+        response = client.models.generate_content(
+            model="gemini-3.1-flash-image",
+            contents=image_prompt,
+            config=types.GenerateContentConfig(
+                response_modalities=["IMAGE"]
+            )
+        )
+
+        for part in response.parts:
+
+            if part.inline_data:
+
+                image = part.as_image()
+
+                image_path = f"comic_panel_{panel_number}.png"
+
+                image.save(image_path)
+
+                return image_path
+
+        return None
+
+    except Exception as e:
+
+        st.error(
+            f"Image generation error for Panel {panel_number}: {e}"
+        )
+
+        return None
 
 
 # --------------------------------------------------
@@ -56,6 +96,7 @@ with st.sidebar:
     st.subheader("✨ Features")
 
     st.write("📖 AI Story Generation")
+    st.write("🖼️ AI Comic Images")
     st.write("💬 Character Dialogues")
     st.write("🎭 Character Consistency")
     st.write("📥 Story Download")
@@ -155,7 +196,7 @@ between panels.
             try:
 
                 response = client.models.generate_content(
-                    model="gemini-2.0-flash",
+                    model="gemini-3.5-flash-lite",
                     contents=prompt
                 )
 
@@ -209,6 +250,15 @@ between panels.
             "## 📖 Your Comic Story"
         )
 
+        st.markdown(
+            "### 🖼️ Comic Panels"
+        )
+
+        st.info(
+            "✨ ComicCraft will now create an image "
+            "for each panel."
+        )
+
 
         # ------------------------------------------
         # Split panels
@@ -227,6 +277,75 @@ between panels.
         ):
 
             st.markdown("---")
+
+
+            # --------------------------------------
+            # Get Image Prompt
+            # --------------------------------------
+
+            panel_image = None
+
+            # Get Image Prompt
+            panel_image = None
+
+            image_prompt = ""
+
+            if "Image Prompt:" in panel:
+                image_prompt = panel.split("Image Prompt:", 1)[1].strip()
+
+            elif "Image prompt:" in panel:
+                image_prompt = panel.split("Image prompt:", 1)[1].strip()
+
+            elif "4. Image prompt" in panel:
+                image_prompt = panel.split("4. Image prompt", 1)[1].strip()
+
+            elif "4. Image Prompt" in panel:
+                image_prompt = panel.split("4. Image Prompt", 1)[1].strip()
+
+
+            if image_prompt:
+
+                with st.spinner(
+                    f"🎨 Generating Panel {panel_number} image..."
+                ):
+
+                    panel_image = generate_panel_image(
+                        image_prompt,
+                        panel_number
+                    )
+
+
+            if panel_image:
+
+                st.image(
+                    panel_image,
+                    caption=f"🖼️ Comic Panel {panel_number}",
+                    use_container_width=True
+                )
+
+                
+                with st.spinner(
+                    f"🎨 Generating Panel {panel_number} image..."
+                ):
+
+                    panel_image = generate_panel_image(
+                        image_prompt,
+                        panel_number
+                    )
+
+
+            # --------------------------------------
+            # Display Image
+            # --------------------------------------
+
+            if panel_image:
+
+                st.image(
+                    panel_image,
+                    caption=f"🖼️ Comic Panel {panel_number}",
+                    use_container_width=True
+                )
+
 
             # --------------------------------------
             # Panel box
@@ -303,6 +422,10 @@ between panels.
                 unsafe_allow_html=True
             )
 
+
+        # ------------------------------------------
+        # Final message
+        # ------------------------------------------
 
         # ------------------------------------------
         # Save story
